@@ -26,6 +26,8 @@ import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.transport.TServerTransport;
 import org.apache.thrift.transport.TTransportFactory;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * Generic interface for a Thrift server.
  *
@@ -45,7 +47,6 @@ public abstract class TServer {
     TTransportFactory outputTransportFactory = new TTransportFactory();
     TProtocolFactory inputProtocolFactory = new TBinaryProtocol.Factory();
     TProtocolFactory outputProtocolFactory = new TBinaryProtocol.Factory();
-
     public AbstractServerArgs(TServerTransport transport) {
       serverTransport = transport;
     }
@@ -125,6 +126,11 @@ public abstract class TServer {
 
   private boolean isServing;
 
+  /**
+   * Synchronizer used to implement {@link org.apache.thrift.server.TServer#waitForServing()}
+   */
+  private final Object isServingSynchronizer = new Object();
+
   protected TServerEventHandler eventHandler_;
 
   protected TServer(AbstractServerArgs args) {
@@ -134,6 +140,7 @@ public abstract class TServer {
     outputTransportFactory_ = args.outputTransportFactory;
     inputProtocolFactory_ = args.inputProtocolFactory;
     outputProtocolFactory_ = args.outputProtocolFactory;
+    eventHandler_ = new DefaultServerEventHandler();
   }
 
   /**
@@ -147,12 +154,32 @@ public abstract class TServer {
    */
   public void stop() {}
 
-  public boolean isServing() {
-    return isServing;
+  /**
+   * Wait until isServing() becomes true
+   *
+   * @throws InterruptedException if the thread is interrupted before isServing() becomes true
+   */
+  public final void waitForServing() throws InterruptedException {
+    synchronized (isServingSynchronizer) {
+      while (!isServing()) {
+        isServingSynchronizer.wait();
+      }
+    }
   }
 
-  protected void setServing(boolean serving) {
-    isServing = serving;
+  public final boolean isServing() {
+    synchronized (isServingSynchronizer) {
+      return isServing;
+    }
+  }
+
+  protected final void setServing(boolean serving) {
+    synchronized (isServingSynchronizer) {
+      isServing = serving;
+      if (serving) {
+        isServingSynchronizer.notifyAll();
+      }
+    }
   }
 
   public void setServerEventHandler(TServerEventHandler eventHandler) {

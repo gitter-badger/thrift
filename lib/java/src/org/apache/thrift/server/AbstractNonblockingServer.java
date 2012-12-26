@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.thrift.TByteArrayOutputStream;
+import org.apache.thrift.TProcessorContext;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TFramedTransport;
@@ -82,6 +83,8 @@ public abstract class AbstractNonblockingServer extends TServer {
     if (!startThreads()) {
       return;
     }
+
+    eventHandler_.preServe();
 
     // start listening, or exit
     if (!startListening()) {
@@ -231,6 +234,11 @@ public abstract class AbstractNonblockingServer extends TServer {
       if (buffer != null) {
         // close the buffer
         buffer.close();
+        // this method can get called twice if the key is a client
+        // that disconnected during a select() operation that was already
+        // running when stop() was invoked on the server. Clearing the
+        // key attachment prevents double-closing the FrameBuffer.
+        key.attach(null);
       }
       // cancel the selection key
       key.cancel();
@@ -283,10 +291,22 @@ public abstract class AbstractNonblockingServer extends TServer {
 
     private TByteArrayOutputStream response_;
 
+    // The serverContext for the connection with this client
+    private final ServerContext connectionContext_;
+
+    // Flag to indicate close() has already been called.
+    private boolean isClosing_;
+
     public FrameBuffer(final TNonblockingTransport trans,
         final SelectionKey selectionKey,
         final AbstractSelectThread selectThread) {
       trans_ = trans;
+      connectionContext_ = eventHandler_.newConnectionContext(trans_,
+                                                              trans_,
+                                                              inputTransportFactory_,
+                                                              outputTransportFactory_,
+                                                              inputProtocolFactory_,
+                                                              outputProtocolFactory_) ;
       selectionKey_ = selectionKey;
       selectThread_ = selectThread;
       buffer_ = ByteBuffer.allocate(4);
@@ -420,12 +440,18 @@ public abstract class AbstractNonblockingServer extends TServer {
      * Shut the connection down.
      */
     public void close() {
-      // if we're being closed due to an error, we might have allocated a
-      // buffer that we need to subtract for our memory accounting.
-      if (state_ == FrameBufferState.READING_FRAME || state_ == FrameBufferState.READ_FRAME_COMPLETE) {
-        readBufferBytesAllocated.addAndGet(-buffer_.array().length);
+      // close() can be called twice if the server is stopped on the same iteration of the select
+      // loop that the client
+      if (!isClosing_) {
+        // if we're being closed due to an error, we might have allocated a
+        // buffer that we need to subtract for our memory accounting.
+        if (state_ == FrameBufferState.READING_FRAME || state_ == FrameBufferState.READ_FRAME_COMPLETE) {
+          readBufferBytesAllocated.addAndGet(-buffer_.array().length);
+        }
+        eventHandler_.deleteConnectionContext(connectionContext_);
+        trans_.close();
+        isClosing_ = true;
       }
-      trans_.close();
     }
 
     /**
@@ -475,7 +501,10 @@ public abstract class AbstractNonblockingServer extends TServer {
       TProtocol outProt = outputProtocolFactory_.getProtocol(getOutputTransport());
 
       try {
-        processorFactory_.getProcessor(inTrans).process(inProt, outProt);
+        TProcessorContext context = eventHandler_.newProcessorContext(connectionContext_,
+                                                                      inProt,
+                                                                      outProt);
+        processorFactory_.getProcessor(inTrans).process(context, inProt, outProt);
         responseReady();
         return;
       } catch (TException te) {
@@ -550,13 +579,4 @@ public abstract class AbstractNonblockingServer extends TServer {
       }
     }
   } // FrameBuffer
-
-  public void setServerEventHandler(TServerEventHandler eventHandler) {
-    throw new UnsupportedOperationException("Not supported yet.");
-  }
-
-  public TServerEventHandler getEventHandler() {
-    throw new UnsupportedOperationException("Not supported yet.");
-  }
-
 }

@@ -19,6 +19,7 @@
 
 package org.apache.thrift.server;
 
+import org.apache.thrift.TProcessorContext;
 import org.apache.thrift.TException;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TProtocol;
@@ -51,9 +52,7 @@ public class TSimpleServer extends TServer {
     }
 
     // Run the preServe event
-    if (eventHandler_ != null) {
-      eventHandler_.preServe();
-    }
+    eventHandler_.preServe();
 
     setServing(true);
 
@@ -73,14 +72,17 @@ public class TSimpleServer extends TServer {
           outputTransport = outputTransportFactory_.getTransport(client);
           inputProtocol = inputProtocolFactory_.getProtocol(inputTransport);
           outputProtocol = outputProtocolFactory_.getProtocol(outputTransport);
-          if (eventHandler_ != null) {
-            connectionContext = eventHandler_.createContext(inputProtocol, outputProtocol);
-          }
+          connectionContext = eventHandler_.newConnectionContext(client,
+                                                                 client,
+                                                                 inputTransportFactory_,
+                                                                 outputTransportFactory_,
+                                                                 inputProtocolFactory_,
+                                                                 outputProtocolFactory_);
           while (true) {
-            if (eventHandler_ != null) {
-              eventHandler_.processContext(connectionContext, inputTransport, outputTransport);
-            }
-            if(!processor.process(inputProtocol, outputProtocol)) {
+            TProcessorContext context = eventHandler_.newProcessorContext(connectionContext,
+                                                                          inputProtocol,
+                                                                          outputProtocol);
+            if (!processor.process(context, inputProtocol, outputProtocol)) {
               break;
             }
           }
@@ -95,10 +97,8 @@ public class TSimpleServer extends TServer {
         if (!stopped_) {
           LOGGER.error("Error occurred during processing of message.", x);
         }
-      }
-
-      if (eventHandler_ != null) {
-        eventHandler_.deleteContext(connectionContext, inputProtocol, outputProtocol);
+      } finally {
+        eventHandler_.deleteConnectionContext(connectionContext);
       }
 
       if (inputTransport != null) {

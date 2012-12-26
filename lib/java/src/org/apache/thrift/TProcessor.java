@@ -27,6 +27,10 @@ import org.apache.thrift.protocol.TProtocol;
  *
  */
 public interface TProcessor {
-  public boolean process(TProtocol in, TProtocol out)
+  public boolean process(TProcessorContext processorContext, TProtocol in, TProtocol out)
     throws TException;
+
+  void addEventHandler(TProcessorEventHandler handler);
+
+  void removeEventHandler(TProcessorEventHandler handler);
 }

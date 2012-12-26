@@ -24,6 +24,7 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.thrift.TProcessorContext;
 import org.apache.thrift.TException;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TProtocol;
@@ -110,9 +111,7 @@ public class TThreadPoolServer extends TServer {
     }
 
     // Run the preServe event
-    if (eventHandler_ != null) {
-      eventHandler_.preServe();
-    }
+    eventHandler_.preServe();
 
     stopped_ = false;
     setServing(true);
@@ -182,7 +181,7 @@ public class TThreadPoolServer extends TServer {
       TProtocol inputProtocol = null;
       TProtocol outputProtocol = null;
 
-      TServerEventHandler eventHandler = null;
+      TServerEventHandler eventHandler = getEventHandler();
       ServerContext connectionContext = null;
 
       try {
@@ -192,33 +191,35 @@ public class TThreadPoolServer extends TServer {
         inputProtocol = inputProtocolFactory_.getProtocol(inputTransport);
         outputProtocol = outputProtocolFactory_.getProtocol(outputTransport);	  
 
-        eventHandler = getEventHandler();
-        if (eventHandler != null) {
-          connectionContext = eventHandler.createContext(inputProtocol, outputProtocol);
-        }
+        connectionContext = eventHandler.newConnectionContext(client_,
+                                                              client_,
+                                                              inputTransportFactory_,
+                                                              outputTransportFactory_,
+                                                              inputProtocolFactory_,
+                                                              outputProtocolFactory_);
         // we check stopped_ first to make sure we're not supposed to be shutting
         // down. this is necessary for graceful shutdown.
         while (true) {
+          if (stopped_) {
+            break;
+          }
 
-            if (eventHandler != null) {
-              eventHandler.processContext(connectionContext, inputTransport, outputTransport);
-            }
-
-            if(stopped_ || !processor.process(inputProtocol, outputProtocol)) {
-              break;
-            }
+          TProcessorContext context = eventHandler.newProcessorContext(connectionContext,
+                                                                       inputProtocol,
+                                                                       outputProtocol);
+          if (!processor.process(context, inputProtocol, outputProtocol)) {
+            break;
+          }
         }
       } catch (TTransportException ttx) {
         // Assume the client died and continue silently
       } catch (TException tx) {
         LOGGER.error("Thrift error occurred during processing of message.", tx);
-      } catch (Exception x) {
-        LOGGER.error("Error occurred during processing of message.", x);
+      } catch (Throwable th) {
+        LOGGER.error("Error occurred during processing of message.", th);
       }
 
-      if (eventHandler != null) {
-        eventHandler.deleteContext(connectionContext, inputProtocol, outputProtocol);
-      }
+      eventHandler.deleteConnectionContext(connectionContext);
 
       if (inputTransport != null) {
         inputTransport.close();

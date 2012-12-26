@@ -19,8 +19,11 @@
 
 package org.apache.thrift.server;
 
+import org.apache.thrift.TProcessorContext;
 import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.TTransportFactory;
 
 /**
  * Interface that can handle events from the server core. To
@@ -30,30 +33,49 @@ import org.apache.thrift.transport.TTransport;
  * instance's state).
  */
 public interface TServerEventHandler {
-
   /**
    * Called before the server begins.
    */
   void preServe();
 
   /**
-   * Called when a new client has connected and is about to being processing.
+   * Called when a new client has connected and is about to being processing. Transport
+   * and protocol factories are provided in case the handler needs to do some custom communication
+   * with the client.
+   *
+   * @param inputTransport         the raw connection used to receive input from the client
+   * @param outputTransport        the raw connection used to send output to the client
+   * @param inputTransportFactory  used by handlers that will need to read messages
+   * @param outputTransportFactory used by handlers that will need to read messages
+   * @param inputProtocolFactory   used by handlers that will need to read messages
+   * @param outputProtocolFactory  used by handlers that will need to write messages
    */
-  ServerContext createContext(TProtocol input,
-                              TProtocol output);
+  ServerContext newConnectionContext(TTransport inputTransport,
+                                     TTransport outputTransport,
+                                     TTransportFactory inputTransportFactory,
+                                     TTransportFactory outputTransportFactory,
+                                     TProtocolFactory inputProtocolFactory,
+                                     TProtocolFactory outputProtocolFactory);
+
+  /**
+   * Called just before the processor is invoked, to create a serverContext for the
+   * {@link org.apache.thrift.TProcessorEventHandler}.
+   * <p/>
+   * Override this method to return a subclass of {@link org.apache.thrift.TProcessorContext} in order to pass
+   * information from a {@link TServerEventHandler} to a {@link org.apache.thrift.TProcessorEventHandler}
+   *
+   * @param connectionContext
+   * @param inputProtocol
+   * @param outputProtocol
+   * @return A serverContext used by {@link org.apache.thrift.TProcessorEventHandler}
+   */
+  TProcessorContext newProcessorContext(ServerContext connectionContext,
+                                        TProtocol inputProtocol,
+                                        TProtocol outputProtocol);
 
   /**
    * Called when a client has finished request-handling to delete server
-   * context.
+   * serverContext.
    */
-  void deleteContext(ServerContext serverContext,
-                             TProtocol input,
-                             TProtocol output);
-
-  /**
-   * Called when a client is about to call the processor.
-   */
-  void processContext(ServerContext serverContext,
-                              TTransport inputTransport, TTransport outputTransport);
-
+  void deleteConnectionContext(ServerContext connectionContext);
 }

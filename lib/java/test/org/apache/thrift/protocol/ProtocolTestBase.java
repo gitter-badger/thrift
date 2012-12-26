@@ -26,6 +26,7 @@ import junit.framework.TestCase;
 
 import org.apache.thrift.Fixtures;
 import org.apache.thrift.TBase;
+import org.apache.thrift.TProcessorContext;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
@@ -340,7 +341,8 @@ public abstract class ProtocolTestBase extends TestCase {
 
     testClient.send_Janky(1);
     // System.out.println(clientOutTrans.inspect());
-    testProcessor.process(clientOutProto, clientInProto);
+    TProcessorContext context = new TProcessorContext(clientInProto, clientOutProto);
+    testProcessor.process(context, clientOutProto, clientInProto);
     // System.out.println(clientInTrans.inspect());
     assertEquals(2, testClient.recv_Janky());
   }

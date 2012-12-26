@@ -65,6 +65,7 @@ import org.apache.http.protocol.HttpRequestHandlerRegistry;
 import org.apache.http.protocol.HttpService;
 import org.apache.http.util.EntityUtils;
 import org.apache.thrift.TProcessor;
+import org.apache.thrift.TProcessorContext;
 import org.apache.thrift.protocol.TJSONProtocol;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TMemoryBuffer;
@@ -183,16 +184,17 @@ public class Httpd {
 
                 } else {
 
-		    String mimeType = "application/octet-stream";
-		    MimeUtil2 mimeUtil = new MimeUtil2();
-		    mimeUtil.registerMimeDetector(ExtensionMimeDetector.class.getName());
-		    Collection<MimeType> collection = mimeUtil.getMimeTypes(file);
-		    Iterator<MimeType> iterator = collection.iterator();
-		    while(iterator.hasNext()) {
-			MimeType mt = iterator.next();
-			mimeType =  mt.getMediaType() + "/" + mt.getSubType();
-			break;
-		    }
+            String mimeType = "application/octet-stream";
+            MimeUtil2 mimeUtil = new MimeUtil2();
+            mimeUtil.registerMimeDetector(ExtensionMimeDetector.class.getName());
+            Collection<MimeType> collection = mimeUtil.getMimeTypes(file);
+            Iterator<MimeType> iterator = collection.iterator();
+
+            while(iterator.hasNext()) {
+                MimeType mt = iterator.next();
+                mimeType =  mt.getMediaType() + "/" + mt.getSubType();
+                break;
+            }
 
                     response.setStatusCode(HttpStatus.SC_OK);
                     FileEntity body = new FileEntity(file, mimeType);
@@ -216,8 +218,9 @@ public class Httpd {
                 TMemoryBuffer outbuffer = new TMemoryBuffer(100);           
                 TProtocol outprotocol   = new TJSONProtocol(outbuffer);
                 
-                TProcessor processor = new ThriftTest.Processor(new TestHandler());      
-                processor.process(inprotocol, outprotocol);
+                TProcessor processor = new ThriftTest.Processor(new TestHandler());
+                TProcessorContext context = new TProcessorContext(inprotocol, outprotocol);
+                processor.process(context, inprotocol, outprotocol);
                 
                 byte[] output = new byte[outbuffer.length()];
                 outbuffer.readAll(output, 0, output.length);

@@ -33,6 +33,7 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.apache.thrift.TProcessorContext;
 import org.apache.thrift.TException;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TProtocol;
@@ -116,9 +117,9 @@ public abstract class TExtensibleServlet extends HttpServlet {
       response.setContentType("application/x-thrift");
 
       if (null != this.customHeaders) {
-	for (Map.Entry<String, String> header : this.customHeaders) {
-	  response.addHeader(header.getKey(), header.getValue());
-	}
+        for (Map.Entry<String, String> header : this.customHeaders) {
+          response.addHeader(header.getKey(), header.getValue());
+        }
       }
 
       InputStream in = request.getInputStream();
@@ -131,7 +132,8 @@ public abstract class TExtensibleServlet extends HttpServlet {
       TProtocol inProtocol = inFactory.getProtocol(inTransport);
       TProtocol outProtocol = inFactory.getProtocol(outTransport);
 
-      processor.process(inProtocol, outProtocol);
+      TProcessorContext context = new TProcessorContext(inProtocol, outProtocol);
+      processor.process(context, inProtocol, outProtocol);
       out.flush();
     } catch (TException te) {
       throw new ServletException(te);

@@ -382,7 +382,7 @@ public class TestClient {
           testClient.testException("Xception");
           System.out.print("  void\nFAILURE\n");
         } catch(Xception e) {
-          System.out.printf("  {%u, \"%s\"}\n", e.errorCode, e.message);
+          System.out.printf("  {%d, \"%s\"}\n", e.errorCode, e.message);
         }
         
         try {
@@ -411,7 +411,7 @@ public class TestClient {
           testClient.testMultiException("Xception", "test 1");
           System.out.print("  result\nFAILURE\n");
         } catch(Xception e) {
-          System.out.printf("  {%u, \"%s\"}\n", e.errorCode, e.message);
+          System.out.printf("  {%d, \"%s\"}\n", e.errorCode, e.message);
         }
         
         try {
@@ -419,7 +419,7 @@ public class TestClient {
           testClient.testMultiException("Xception2", "test 2");
           System.out.print("  result\nFAILURE\n");
         } catch(Xception2 e) {
-          System.out.printf("  {%u, {\"%s\"}}\n", e.errorCode, e.struct_thing.string_thing);
+          System.out.printf("  {%d, {\"%s\"}}\n", e.errorCode, e.struct_thing.string_thing);
         }
         
         try {

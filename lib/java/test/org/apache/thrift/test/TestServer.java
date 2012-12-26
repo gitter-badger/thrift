@@ -19,81 +19,159 @@
 
 package org.apache.thrift.test;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
+import org.apache.thrift.TBase;
+import org.apache.thrift.TProcessorContext;
+import org.apache.thrift.TProcessorEventHandler;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.server.ServerContext;
+import org.apache.thrift.server.ServerTestBase.TestHandler;
 import org.apache.thrift.server.TServer;
-import org.apache.thrift.server.TServer.Args;
-import org.apache.thrift.server.TSimpleServer;
+import org.apache.thrift.server.TServerEventHandler;
 import org.apache.thrift.server.TThreadPoolServer;
 import org.apache.thrift.transport.TServerSocket;
-import org.apache.thrift.server.ServerTestBase.TestHandler;
-import org.apache.thrift.server.TServerEventHandler;
 import org.apache.thrift.transport.TTransport;
-
-import thrift.test.Insanity;
-import thrift.test.Numberz;
+import org.apache.thrift.transport.TTransportFactory;
 import thrift.test.ThriftTest;
-import thrift.test.Xception;
-import thrift.test.Xception2;
-import thrift.test.Xtruct;
-import thrift.test.Xtruct2;
 
 public class TestServer {
 
   static class TestServerContext implements ServerContext {
+    private final int connectionId;
+    public TestServerContext(int connectionId) {
+      this.connectionId = connectionId;
+    }
 
-        int connectionId;
+    public int getConnectionId() {
+      return connectionId;
+    }
+  }
 
-        public TestServerContext(int connectionId) {
-            this.connectionId = connectionId;
-        }
+  static class TestProcessorContext extends TProcessorContext {
+    private final int connectionId;
 
-        public int getConnectionId() {
-            return connectionId;
-        }
+    public TestProcessorContext(TProtocol inputProtocol,
+                                TProtocol outputProtocol,
+                                int connectionId) {
+      super(inputProtocol, outputProtocol);
+      this.connectionId = connectionId;
+    }
 
-        public void setConnectionId(int connectionId) {
-            this.connectionId = connectionId;
-        }
+    public int getConnectionId() {
+      return connectionId;
+    }
+  }
 
+  private static class TestHandlerContext {
+    private final int connectionId;
+
+    private final String methodName;
+    private TestHandlerContext(int connectionId, String methodName) {
+      this.connectionId = connectionId;
+      this.methodName = methodName;
+    }
+
+    public int getConnectionId() {
+      return connectionId;
+    }
+
+    public String getMethodName() {
+      return methodName;
+    }
   }
 
   static class TestServerEventHandler implements TServerEventHandler {
 
-        private int nextConnectionId = 1;
+    private int nextConnectionId = 1;
 
-        public void preServe() {
-            System.out.println("TServerEventHandler.preServe - called only once before server starts accepting connections");
-        }
+    public void preServe() {
+      System.out.println("TServerEventHandler.preServe - called only once before server starts accepting connections");
+    }
 
-        public ServerContext createContext(TProtocol input, TProtocol output) {
-            //we can create some connection level data which is stored while connection is alive & served
-            TestServerContext ctx = new TestServerContext(nextConnectionId++);
-            System.out.println("TServerEventHandler.createContext - connection #"+ctx.getConnectionId()+" established");
-            return ctx;
-        }
+    @Override
+    public ServerContext newConnectionContext(TTransport inputTransport,
+                                              TTransport outputTransport,
+                                              TTransportFactory inputTransportFactory,
+                                              TTransportFactory outputTransportFactory,
+                                              TProtocolFactory inputProtocolFactory,
+                                              TProtocolFactory outputProtocolFactory) {
+      //we can create some connection level data which is stored while connection is alive & served
+      TestServerContext ctx = new TestServerContext(nextConnectionId++);
+      System.out.println(
+        "TServerEventHandler.newHandlerContext - connection #" + ctx.getConnectionId() +
+        " established");
+      return ctx;
+    }
 
-        public void deleteContext(ServerContext serverContext, TProtocol input, TProtocol output) {
-            TestServerContext ctx = (TestServerContext)serverContext;
-            System.out.println("TServerEventHandler.deleteContext - connection #"+ctx.getConnectionId()+" terminated");
-        }
-
-        public void processContext(ServerContext serverContext, TTransport inputTransport, TTransport outputTransport) {
-            TestServerContext ctx = (TestServerContext)serverContext;
-            System.out.println("TServerEventHandler.processContext - connection #"+ctx.getConnectionId()+" is ready to process next request");
-        }
+    @Override
+    public void deleteConnectionContext(ServerContext connectionContext) {
+      TestServerContext ctx = (TestServerContext) connectionContext;
+      System.out.println(
+        "TServerEventHandler.deleteRequestContext - connection #" + ctx.getConnectionId() +
+        " terminated");
+    }
+    @Override
+    public TProcessorContext newProcessorContext(ServerContext connectionContext, TProtocol inputProtocol, TProtocol outputProtocol) {
+      TestServerContext ctx = (TestServerContext) connectionContext;
+      System.out.println(
+        "TServerEventHandler.processContext - connection #" + ctx.getConnectionId() +
+        " is ready to process next request");
+      return new TestProcessorContext(inputProtocol, outputProtocol, ctx.getConnectionId());
+    }
 
   }
 
-  public static void main(String [] args) {
+  static class TestProcessorEventHandler implements TProcessorEventHandler {
+
+    @Override
+    public Object newHandlerContext(TProcessorContext processorContext, String methodName) {
+      TestProcessorContext context = (TestProcessorContext) processorContext;
+      return new TestHandlerContext(context.getConnectionId(), methodName);
+    }
+
+    @Override
+    public void preRead(Object context) {
+      TestHandlerContext processorContext = (TestHandlerContext) context;
+      System.out.println(
+        "TServerEventHandler.processContext - connection #" + processorContext.getConnectionId() +
+        " reading args for method " + processorContext.getMethodName());
+    }
+
+    @Override
+    public void postRead(Object context, TBase args) {
+      TestHandlerContext processorContext = (TestHandlerContext) context;
+      System.out.println(
+        "TServerEventHandler.processContext - connection #" + processorContext.getConnectionId() +
+        " finished reading args: " + args.toString());
+    }
+
+    @Override
+    public void preWrite(Object context, TBase result) {
+      TestHandlerContext processorContext = (TestHandlerContext) context;
+      System.out.println(
+        "TServerEventHandler.processContext - connection #" + processorContext.getConnectionId() +
+        " writing result for method " + processorContext.getMethodName());
+    }
+
+    @Override
+    public void postWrite(Object context, TBase result) {
+      TestHandlerContext processorContext = (TestHandlerContext) context;
+      System.out.println(
+        "TServerEventHandler.processContext - connection #" + processorContext.getConnectionId() +
+        " finished writing result: " + result.toString());
+    }
+
+    @Override
+    public void processorError(Object context, Throwable throwable) {
+    }
+
+    @Override
+    public void deleteRequestContext(Object context) {
+    }
+  }
+
+  public static void main(String[] args) {
     try {
       int port = 9090;
       if (args.length > 1) {
@@ -105,7 +183,9 @@ public class TestServer {
       TestHandler testHandler =
         new TestHandler();
       ThriftTest.Processor testProcessor =
-        new ThriftTest.Processor(testHandler);
+        new ThriftTest.Processor<ThriftTest.Iface>(testHandler);
+
+      testProcessor.addEventHandler(new TestProcessorEventHandler());
 
       // Transport
       TServerSocket tServerSocket =

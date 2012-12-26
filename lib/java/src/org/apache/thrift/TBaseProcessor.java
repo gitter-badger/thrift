@@ -1,5 +1,25 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.apache.thrift;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
 
@@ -12,10 +32,12 @@ import org.apache.thrift.protocol.TType;
 public abstract class TBaseProcessor<I> implements TProcessor {
   private final I iface;
   private final Map<String,ProcessFunction<I, ? extends TBase>> processMap;
+  private final ArrayList<TProcessorEventHandler> handlers;
 
   protected TBaseProcessor(I iface, Map<String, ProcessFunction<I, ? extends TBase>> processFunctionMap) {
     this.iface = iface;
     this.processMap = processFunctionMap;
+    this.handlers = new ArrayList<TProcessorEventHandler>();
   }
 
   public Map<String,ProcessFunction<I, ? extends TBase>> getProcessMapView() {
@@ -23,7 +45,7 @@ public abstract class TBaseProcessor<I> implements TProcessor {
   }
 
   @Override
-  public boolean process(TProtocol in, TProtocol out) throws TException {
+  public boolean process(TProcessorContext processorContext, TProtocol in, TProtocol out) throws TException {
     TMessage msg = in.readMessageBegin();
     ProcessFunction fn = processMap.get(msg.name);
     if (fn == null) {
@@ -36,7 +58,19 @@ public abstract class TBaseProcessor<I> implements TProcessor {
       out.getTransport().flush();
       return true;
     }
-    fn.process(msg.seqid, in, out, iface);
+    TProcessorEventSink processorEventSink = new TProcessorEventSink(processorContext, msg.name, handlers);
+    fn.process(msg.seqid, in, out, iface, processorEventSink);
+    processorEventSink.deleteRequestContexts();
     return true;
+  }
+
+  @Override
+  public void addEventHandler(TProcessorEventHandler handler) {
+    handlers.add(handler);
+  }
+
+  @Override
+  public void removeEventHandler(TProcessorEventHandler handler) {
+    handlers.remove(handler);
   }
 }

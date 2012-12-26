@@ -63,6 +63,7 @@ import org.apache.http.protocol.HttpRequestHandlerRegistry;
 import org.apache.http.protocol.HttpService;
 import org.apache.http.util.EntityUtils;
 import org.apache.thrift.TProcessor;
+import org.apache.thrift.TProcessorContext;
 import org.apache.thrift.protocol.TJSONProtocol;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TMemoryBuffer;
@@ -194,8 +195,9 @@ public class Httpd {
                 TMemoryBuffer outbuffer = new TMemoryBuffer(100);           
                 TProtocol outprotocol   = new TJSONProtocol(outbuffer);
                 
-                TProcessor processor = new Calculator.Processor(new CalculatorHandler());      
-                processor.process(inprotocol, outprotocol);
+                TProcessor processor = new Calculator.Processor(new CalculatorHandler());
+                TProcessorContext context = new TProcessorContext(inprotocol, outprotocol);
+                processor.process(context, inprotocol, outprotocol);
                 
                 byte[] output = new byte[outbuffer.length()];
                 outbuffer.readAll(output, 0, output.length);
