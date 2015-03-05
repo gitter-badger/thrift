@@ -142,6 +142,8 @@ set( thriftcppnb_SOURCES
 # Thrift zlib server
 set( thriftcppz_SOURCES
     src/thrift/transport/TZlibTransport.cpp
+    src/thrift/transport/THeaderTransport.cpp
+    src/thrift/protocol/THeaderProtocol.cpp
 )
 
 # Thrift Qt4 server
