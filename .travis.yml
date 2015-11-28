@@ -36,7 +36,7 @@ compiler:
 addons:
     apt:
       sources:
-      - r-packages-trusty
+      - ubuntu-toolchain-r-test
       packages:
       - cmake
       - libqt4-dev
