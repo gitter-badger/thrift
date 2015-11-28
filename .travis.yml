@@ -21,29 +21,60 @@
 
 language: cpp
 
-sudo: required
+sudo: false
 
 cache:
  - apt
  - npm
  - maven
+ - bundler
 
 compiler:
   - clang
   - gcc
 
+addons:
+    apt:
+      packages:
+      - cmake
+      - libpango-1.0-0
+      - libqt4-dev
+      - qtbase5-dev
+      - qtbase5-dev-tools
+      - qt5-default
+      - libboost-dev
+      - libboost-test-dev
+      - libboost-program-options-dev
+      - libboost-system-dev
+      - libboost-filesystem-dev
+      - libboost-thread-dev
+      - libevent-dev
+      - automake
+      - libtool
+      - flex
+      - bison
+      - pkg-config
+      - g++
+      - libssl-dev
+      - make
+      - cmake
+      - git
+      - debhelper
+      - bc
+      - nsis
+      - ninja-build
+      - cppcheck
+      - sloccount
+
+# TODO move build/travis/installDependencies.sh over here
+
 before_install:
-  - sh build/travis/installCXXDependencies.sh
   - if [ "$ALL_DEPS" != "no" ] ; then sh build/travis/installDependencies.sh 1> /dev/null ; fi
   - if [ "$BUILD_HASKELL" != "no" ] ; then export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/1.20/bin:$PATH ; fi
   - if [ "$BUILD_HASKELL" != "no" ] ; then cabal update ; fi
   # Disabling any cabal concurrent jobs to workaround GHC crashes due to out of memory.
   # We can safely remove this to speed up cabal install, once Travis infrastructure is upgraded.
   - if [ "$BUILD_HASKELL" != "no" ] ; then sed -i 's/^\s*jobs\s*:\s*\$ncpus\s*$/jobs:1/g' $HOME/.cabal/config && cat $HOME/.cabal/config | grep jobs ; fi
-
-before_script:
-  - sudo /etc/init.d/mysql stop
-  - sudo /etc/init.d/postgresql stop
 
 script:
   - if [ "x$CMAKE_CONFIG" != "xnone" ] ; then mkdir cmake_build && cd cmake_build && cmake -GNinja -DQT_MOC_EXECUTABLE="moq-qt5" $CMAKE_CONFIG $TRAVIS_BUILD_DIR ; fi
@@ -144,7 +175,6 @@ matrix:
         - TEST_NAME="Debian Packages"
       compiler: clang
       before_install:
-       - sh build/travis/installCXXDependencies.sh;
        - sh build/travis/installDependencies.sh 1> /dev/null;
        - sudo apt-get install build-essential mono-gmcs mono-devel libmono-system-web2.0-cil erlang-base ruby1.8-dev python-all python-all-dev python-all-dbg php5 php5-dev
       script:
@@ -157,7 +187,6 @@ matrix:
     # static code analysis with cppcheck
     # add --error-exitcode=1 to --enable=all as soon as everything is fixed
     - env:    TEST_NAME="cppcheck"
-      before_install: sudo apt-get install cppcheck
       script:
         # Compiler cppcheck (All)
         - cppcheck --force --quiet --inline-suppr --enable=all -j2 compiler/cpp/src
@@ -179,7 +208,6 @@ matrix:
     # some statistics about the code base
     # some info about the build machine
     - env:    TEST_NAME="TODO FIXME HACK, LoC and system info"
-      before_install: sudo apt-get install sloccount
       script:
         - grep -r TODO *
         - grep -r FIXME *
