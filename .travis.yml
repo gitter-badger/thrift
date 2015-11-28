@@ -38,9 +38,6 @@ addons:
       packages:
       - cmake
       - libqt4-dev
-      - qtbase5-dev
-      - qtbase5-dev-tools
-      - qt5-default
       - libboost-dev
       - libboost-test-dev
       - libboost-program-options-dev
