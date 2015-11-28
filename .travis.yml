@@ -35,6 +35,8 @@ compiler:
 
 addons:
     apt:
+      sources:
+      - r-packages-trusty
       packages:
       - cmake
       - libqt4-dev
