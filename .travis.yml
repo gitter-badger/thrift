@@ -37,7 +37,6 @@ addons:
     apt:
       packages:
       - cmake
-      - libpango-1.0-0
       - libqt4-dev
       - qtbase5-dev
       - qtbase5-dev-tools
